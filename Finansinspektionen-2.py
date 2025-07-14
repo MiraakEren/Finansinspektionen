@@ -164,7 +164,7 @@ def parse_mainpage(main_page, threshold):
                     and total_value > threshold
                     and transaction_nature in ["Acquisition", "Disposal"]
                     and (closely_associated == ""
-                    or person_surname in ["Arnhult"] or first_surname_maybe == ["Arnhult"])
+                    or person_surname in ["Arnhult", "Persson"] or first_surname_maybe == ["Arnhult", "Persson"])
                 ):
                 seen_reports.add(report_link)
                 to_process.add(report_link)
@@ -198,6 +198,14 @@ def parse_new_reports(to_process):
                 obligated_name_div = soup.find("div", {"class": "col-sm-4 text-right"}, 
                                         string=re.compile(r"\s*Name of person with notification obligation\s*", re.IGNORECASE))
                 obligated_name = obligated_name_div.find_next_sibling().text.strip() if obligated_name_div else None
+
+                obligated_name_lower = obligated_name.lower() if obligated_name else ""
+                for suffix in [" ab", "abp", "hb", "kb", " ab (publ.)"]:
+                    if obligated_name_lower.endswith(suffix):
+                        obligated_clean_name = obligated_name_lower[: -len(suffix)].strip()
+                        break
+                else:
+                    obligated_clean_name = obligated_name_lower
                 
                 closely_div = soup.find("div", {"class": "col-sm-4 text-right"}, 
                                 string=re.compile(r"\s*Closely associated\s*", re.IGNORECASE))
@@ -224,7 +232,13 @@ def parse_new_reports(to_process):
                 for suffix in [" ab", "abp", "hb", "kb", " ab (publ.)"]:
                     if issuer_lower.endswith(suffix):
                         issuer_clean = issuer[: -len(suffix)].strip()
-                        break
+                        if issuer_clean.lower() == "h & m hennes & mauritz":
+                            issuer_clean = "H&M"
+                        else:
+                            issuer_clean = issuer_clean.title()
+                    else:
+                        issuer_clean = issuer_lower
+
 
                 if position_full:
                     position_text = position_full.text.strip().lower()
@@ -369,6 +383,7 @@ def parse_new_reports(to_process):
 
                 transaction_result = {
                     "obligated_name": obligated_name.upper(),
+                    "obligated_clean_name": obligated_clean_name.upper(),
                     "managerial_person": managerial_person.upper(),
                     "position": position.upper(),
                     "issuer": issuer.upper(),
@@ -407,7 +422,7 @@ def parse_new_reports(to_process):
                             output_sentences.append(place_sentence)
                         else:
                             transaction_sentence = (
-                                f"{transaction_result.get('obligated_name')}, CLOSELY ASSOCIATED WITH "
+                                f"{transaction_result.get('obligated_clean_name')}, CLOSELY ASSOCIATED WITH "
                                 f"{transaction_result.get('position_combined')} {transaction_result.get('managerial_person')}, "
                                 f"{transaction_result.get('transaction_text')} {transaction_result.get('currency')} "
                                 f"{transaction_result.get('total_value_str')} WORTH OF CO'S "
@@ -428,7 +443,7 @@ def parse_new_reports(to_process):
                             output_sentences.append(place_sentence)
                         else:
                             transaction_sentence = (
-                                f"{transaction_result.get('obligated_name')}, CLOSELY ASSOCIATED WITH "
+                                f"{transaction_result.get('obligated_clean_name')}, CLOSELY ASSOCIATED WITH "
                                 f"{transaction_result.get('position')} {transaction_result.get('managerial_person')}, "
                                 f"{transaction_result.get('transaction_text')} {transaction_result.get('volume')} OF CO'S"
                                 f"SHARES ON {transaction_result.get('date_text')}-FINANSINSPEKTIONEN"    
@@ -448,43 +463,43 @@ def parse_new_reports(to_process):
 
 
             #aggregate details:
-            #     aggr_panel = soup.find("div", class_="panel-heading", 
-            #                 string=re.compile(r"\s*Aggregation\s*", re.IGNORECASE))
-            #     aggr_table = aggr_panel.find_next("table") if aggr_panel else None
-                
-            #     if aggr_table and aggr_table.find("tbody"):
-            #         aggr_rows = aggr_table.find("tbody").find_all("tr")
-            #         for aggr_row in aggr_rows:
-            #             aggr_cells = aggr_row.find_all("td")
+            # aggr_panel = soup.find("div", class_="panel-heading", 
+            #             string=re.compile(r"\s*Aggregation\s*", re.IGNORECASE))
+            # aggr_table = aggr_panel.find_next("table") if aggr_panel else None
+            
+            # if aggr_table and aggr_table.find("tbody"):
+            #     aggr_rows = aggr_table.find("tbody").find_all("tr")
+            #     for aggr_row in aggr_rows:
+            #         aggr_cells = aggr_row.find_all("td")
 
-            #             aggr_fin_instrument = aggr_cells[0].text.strip()
-            #             aggr_isin = aggr_cells[1].text.strip()
-            #             aggr_transaction = aggr_cells[2].text.strip()
-            #             aggr_date = aggr_cells[3].text.strip()
-            #             aggr_place = aggr_cells[4].text.strip()
-            #             aggr_volume = aggr_cells[5].text.strip()
-            #             aggr_price_pu = aggr_cells[6].text.strip()
+            #         aggr_fin_instrument = aggr_cells[0].text.strip()
+            #         aggr_isin = aggr_cells[1].text.strip()
+            #         aggr_transaction = aggr_cells[2].text.strip()
+            #         aggr_date = aggr_cells[3].text.strip()
+            #         aggr_place = aggr_cells[4].text.strip()
+            #         aggr_volume = aggr_cells[5].text.strip()
+            #         aggr_price_pu = aggr_cells[6].text.strip()
 
-            #             aggr_volume_clean = aggr_volume.replace("(Quantity)", "").replace(",", "").strip() if aggr_volume else "0"
-            #             aggr_price_pu_clean = aggr_price_pu.replace("SEK", "").replace(",", "").strip() if aggr_price_pu else "0"
-                        
-            #             try:
-            #                 aggr_volume_float = float(aggr_volume_clean)
-            #                 aggr_price_pu_float = float(aggr_price_pu_clean)
-            #                 aggr_total_value = aggr_volume_float * aggr_price_pu_float
-            #             except ValueError:
-            #                 aggr_volume_float = 0.0
-            #                 aggr_price_pu_float = 0.0
-            #                 aggr_total_value = 0.0
+            #         aggr_volume_clean = aggr_volume.replace("(Quantity)", "").replace(",", "").strip() if aggr_volume else "0"
+            #         aggr_price_pu_clean = aggr_price_pu.replace("SEK", "").replace(",", "").strip() if aggr_price_pu else "0"
+                    
+            #         try:
+            #             aggr_volume_float = float(aggr_volume_clean)
+            #             aggr_price_pu_float = float(aggr_price_pu_clean)
+            #             aggr_total_value = aggr_volume_float * aggr_price_pu_float
+            #         except ValueError:
+            #             aggr_volume_float = 0.0
+            #             aggr_price_pu_float = 0.0
+            #             aggr_total_value = 0.0
 
-            #     print("-------------- aggregate details --------------")
-            #     print(f"Aggregate financial instrument: {aggr_fin_instrument}")
-            #     print(f"Aggregate transaction: {aggr_transaction}")
-            #     print(f"Aggregate place: {aggr_place}")
-            #     print(f"Aggregate volume: {aggr_volume}")
-            #     print(f"Aggregate price per unit: {aggr_price_pu}")
-            #     print(f"Aggregate total value: {aggr_total_value:.2f}")
-            #     print("-------------- ------------------ --------------")
+            # print("-------------- aggregate details --------------")
+            # print(f"Aggregate financial instrument: {aggr_fin_instrument}")
+            # print(f"Aggregate transaction: {aggr_transaction}")
+            # print(f"Aggregate place: {aggr_place}")
+            # print(f"Aggregate volume: {aggr_volume}")
+            # print(f"Aggregate price per unit: {aggr_price_pu}")
+            # print(f"Aggregate total value: {aggr_total_value:.2f}")
+            # print("-------------- ------------------ --------------")
                 
         
         except requests.RequestException as e:
