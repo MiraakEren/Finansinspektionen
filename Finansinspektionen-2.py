@@ -229,15 +229,18 @@ def parse_new_reports(to_process):
                 issuer = issuer_div.find_next_sibling("div").text.strip() if issuer_div else None
 
                 issuer_lower = issuer.lower()
-                for suffix in [" ab", "abp", "hb", "kb", " ab (publ.)"]:
-                    if issuer_lower.endswith(suffix):
+                issuer_clean = issuer
+                for suffix in [" ab", "abp", "hb", "kb", " ab (publ.)", " ab (publ)", "(publ)", "(publ.)", " ab (publ.)"]:
+                    if issuer_lower.endswith(suffix.lower()):
                         issuer_clean = issuer[: -len(suffix)].strip()
                         if issuer_clean.lower() == "h & m hennes & mauritz":
                             issuer_clean = "H&M"
                         else:
                             issuer_clean = issuer_clean.title()
-                    else:
-                        issuer_clean = issuer_lower
+                        break
+                else:
+                    # No suffix found, use title case of original
+                    issuer_clean = issuer.title()
 
 
                 if position_full:
@@ -385,7 +388,7 @@ def parse_new_reports(to_process):
                     "obligated_name": obligated_name.upper(),
                     "obligated_clean_name": obligated_clean_name.upper(),
                     "managerial_person": managerial_person.upper(),
-                    "position": position.upper(),
+                    # "position": position.upper(),
                     "issuer": issuer.upper(),
                     "issuer_clean": issuer_clean.upper(),
                     "position_combined": position_combined.upper(),
@@ -444,7 +447,7 @@ def parse_new_reports(to_process):
                         else:
                             transaction_sentence = (
                                 f"{transaction_result.get('obligated_clean_name')}, CLOSELY ASSOCIATED WITH "
-                                f"{transaction_result.get('position')} {transaction_result.get('managerial_person')}, "
+                                f"{transaction_result.get('position_combined')} {transaction_result.get('managerial_person')}, "
                                 f"{transaction_result.get('transaction_text')} {transaction_result.get('volume')} OF CO'S"
                                 f"SHARES ON {transaction_result.get('date_text')}-FINANSINSPEKTIONEN"    
                             )
